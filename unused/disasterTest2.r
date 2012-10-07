@@ -1,11 +1,20 @@
-#
+###
 # disasterTest2.r
 # created 8-4-12, yet another attempt at this
+# comments updated 9-14-12
 # 
-# This time:
+# Possibly to do:
 # think about likelihood regression 
 # use Surv
 # avoid named objects?
+
+### 
+# Usage:
+#
+
+#
+# Put Library/Require stuff here
+#
 
 ## List pdfs (or maybe prompt for their input?)
 # For sure:
@@ -36,11 +45,13 @@ getData<-function(){  # This depends on what I have and what I want to measure
 }
 
 findFits<-function(obs){#,modelNums){  # Change default modelnums if more models
-
+  
+  # These are initial values
   parGuesses<-list(
       mean(obs),
       c(mean(obs),1))
   
+  # These are lower
   LBounds<-list(
       1e-5,
       c(1e-5,1e-5))

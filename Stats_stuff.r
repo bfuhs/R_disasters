@@ -1,26 +1,41 @@
-# Stats_stuff.r
+#### Stats_stuff.r
 #
 # file created 9-19-12 by Brendon Fuhs
-# last updated 9-24-12
+# last updated 10-7-12
 #
-### Uses the following packages:
-#
-### Usage:
-# large samples, continuous models/domains
-#
-### Models list
-#
-### Issues
-#
+# You may have to download packages
+# bbmle, moments, and stringr
+
+### Methods to Use:
+
+### inputData() #NON-FUNCTIONAL
+# will be used to get and clean data
+# Right now just has useful commands
+
+### printStats(somedata)
+# gives descriptive statistics for some data
+
+### plotEmpHaz(somedata)
+# non-parametric hazard function estimation plot
+
+### Test0(somedata) #THAT'S A ZERO, NOT THE LETTER O
+# tests for normality and log-normality using Shapiro-Wilk Test
+
+### Test1(somedata) #ALMOST COMPLETE
+# Tests using exponential distribution as Null
+# and Weibull as alternate hyp
+
+### Test2(somedata) #INCOMPLETE
+# Applies power law analysis
 
 
 library(stringr)
 library(moments)
-# Do I want bbmle?
 library(bbmle)
 
 ## function to Handle data
 # takes in data, cleans/operates on it, spits out data
+###### This function doesn't actually work; it's just where I've stashed some commands
 inputData <- function(){
   print("Your working directory is...")
   print(getwd())
@@ -168,25 +183,19 @@ LogLExp <- function(a, obs){
   return (-LogL)
 }
 
-#LogLWeib <- function(theta, obs){
-#  a=theta[1]
-#  b=theta[2]
-#  n<-length(obs)
-#  LogL <- n*log(a*(b^-a)) + (a-1)*sum(log(obs)) - sum(obs^a)/(b^a)
-#  return (-LogL)
-#}
-
 LogLWeib <- function(a,b,obs){
-#  a = theta[1]
-#  b = theta[2]
   n <- length(obs)
   LogL <- n*log(a/(b^a)) + (a-1)*sum(log(obs)) - sum(obs^a)/(b^a)
-  #LogL <- n*log(a/b) + (a-1)*sum(log(obs/b)) - sum(obs^a)/(b^a)
   if (is.na(LogL)) 
     LogL <- -1e+100
   if (LogL <= -1e+100) 
     LogL <- -1e+100
   return (-LogL)
+}
+
+LogLPower <- function(a,b,obs){
+  
+  
 }
 
 pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
@@ -218,17 +227,19 @@ empPDF<-function(obs){
   return (approxfun(xpts, y=ypts, yleft=0, yright=0))
 }
 
-# Shapiro-Wilk test for log-normality
-Hypothesis0 <- function(diffs){
+# Shapiro-Wilk test for normality and log-normality
+Test0 <- function(diffs){
+  diffs=diffs[diffs!=0 & !is.na(diffs)]
   
-  shapiro.test(diffs)
-  
-  shapiro.test(log(diffs)) ## Is this how to do the log-normality?
+  print("Normal: ")
+  print(shapiro.test(diffs))
+  print("Log-normal: (Okay to test this way?) ")
+  print(shapiro.test(log(diffs))) ## Is this how to do the log-normality?
   
 }
 
 # Exp vs Weib
-Hypothesis1 <- function(diffs){
+Test1 <- function(diffs){
   
   meanDiff <- mean(diffs)
   
@@ -269,9 +280,9 @@ Hypothesis1 <- function(diffs){
 }
 
 # Divide cost by a power of ten so it doesn't overwhelm things
-Hypothesis2 <- function(diffs){
+Test2 <- function(diffs){
   
-  # First, OLM on logs
+  # First, OLS on logs
   diffs=diffs[diffs!=0 & !is.na(diffs)]
   empCDF = ecdf(diffs)
   diffs = diffs[diffs!=max(diffs)] # Get rid of max to keep logs from breaking
@@ -284,6 +295,8 @@ Hypothesis2 <- function(diffs){
   plot(Xlogs,Ylogs)
   abline(loggyFit, col="blue")
 
+  # Now should do something better.
+  
   
 }
 
@@ -314,6 +327,15 @@ printStats <- function(x){
   print(" ")
 }
 
+plotEmpHaz <- function(somedata){
+  somedata = somedata[somedata!=0 & !is.na(somedata)] # Do I need this?
+  
+  empCDF = ecdf(somedata)
+  empPDF = density(somedata)
+  
+  plot(empPDF$x,empPDF$y/(1-empCDF(empPDF$x)), type="l")
+  
+}
 
 # http://answers.oreilly.com/topic/2631-how-to-create-a-bar-chart-with-r/
 # RegionTotals = tapply(cost[!is.na(cost)],OFDAdata$Region[!is.na(cost)],sum)

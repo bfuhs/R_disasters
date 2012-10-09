@@ -25,6 +25,10 @@
 # Tests using exponential distribution as Null
 # and Weibull as alternate hyp
 
+### Test1Discrete(somedata)
+# Discrete version of test 1
+#
+
 ### Test2(somedata) #INCOMPLETE
 # Applies power law analysis
 
@@ -193,9 +197,56 @@ LogLWeib <- function(a,b,obs){
   return (-LogL)
 }
 
-LogLPower <- function(a,b,obs){
+# Prob = (b-1) * a^(b-1) * x^(-b)
+LogLPower <- function(a,b,obs){ 
+  n<-length(obs)
+  LogL <- n*log((b-1)*a^(b-1)) - b*sum(log(obs))
   
+  if (is.na(LogL)) 
+    LogL <- -1e+100
+  if (LogL <= -1e+100) 
+    LogL <- -1e+100
+  return (-LogL)
+}
+
+LogLGeom <- function(a, obs){ # a is a probability
+  n = length(obs)
+  # Lik = (1-a)^sum(obs-1) * a^n
+  LogL = sum(obs-1)*log(1-a) + n*log(a)
+  if (is.na(LogL)) 
+    LogL <- -1e+100
+  if (LogL <= -1e+100) 
+    LogL <- -1e+100
+  return (-LogL)
+}
+
+LogLDiscWeib<- function(a,b,obs){
+  LogL = sum(log((1-a)^(obs^b) - (1-a)^((obs+1)^b)))
+  # Not sure how to simplify this
   
+  if (is.na(LogL)) 
+    LogL <- -1e+100
+  if (LogL <= -1e+100) 
+    LogL <- -1e+100
+  return (-LogL)
+}
+
+# books.google.com/books?isbn=185233939X page 17
+# changed parameterization a little
+discWeibPMF <- function(x,a,b){
+  Prob = (1-a)^(x^b) - (1-a)^((x+1)^b)
+  return (Prob*(Prob >= 0))
+  #if (Prob >= 0){
+  #  return (Prob)
+  #}
+  #else{
+  #  return (0)
+  #}
+}
+
+paretoPDF <- function(x,a,b){
+  Prob = (b-1) * a^(b-1) * x^(-b)
+  return (Prob*(Prob >= 0))
 }
 
 pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
@@ -209,7 +260,7 @@ pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
 empCDF<-ecdf(obs)
 #can use plot.ecdf directly on this
 ###
-# NEED TO FIX/CHECK THIS SHIT RIGHT HERE!!!!
+# NEED TO FIX?
 ###
 #
 # empPDF use kernel estimation/smoothing?
@@ -240,34 +291,18 @@ Test0 <- function(diffs){
 
 # Exp vs Weib
 Test1 <- function(diffs){
-  
   meanDiff <- mean(diffs)
   
-  #expFit <- optim( 1/(meanDiff+1), LogLExp, obs=diffs,
-  #                 method = "SANN")
-                  # method = "L-BFGS-B" , lower = 1e-4)
-  
-  #weibFit <- optim(c(10, meanDiff), LogLWeib, obs=diffs,
-  #                 method = "SANN")
-                   # method = "L-BFGS-B", lower = c(1e-4,1e-4))
-  
   expFit <- mle2(LogLExp, start=list(a=1/(meanDiff+3) ),
-                 #method="SANN", data=list(obs=diffs),
-                 #optimizer="optim")
                  method="L-BFGS-B", data=list(obs=diffs),
                  optimizer="optim", lower=1e-6)
   
   weibFit <- mle2(LogLWeib, start=list(a=1, b=meanDiff-3),
-                  #method="SANN",data=list(obs=diffs),
-                  #optimizer="optim")
                   method="L-BFGS-B",data=list(obs=diffs),
                   optimizer="optim", lower=c(1e-6,1e-6))
   
   #print (summary(expFit))
   #print (summary(weibFit))
-
-  ####### HOW DO I EXTRACT THE LIKELIHOOD? #############
-  #print(pValFromLRT(logLik(expFit), logLik(weibFit), 1))
 
   # xx = c(1:145)
   # plot(xx, ecdf(diffs)(xx))
@@ -275,19 +310,47 @@ Test1 <- function(diffs){
   
   hist(diffs, freq=FALSE, breaks = seq(0,150,5))
   lines(density(diffs), col = "red")
+  # plot(density(diffs), col = "red", log="y") Can omit top two and use this if log plot desired
   curve(dexp(x,coef(expFit)), col="blue", add=TRUE)
   curve(dweibull(x,coef(weibFit)[1],coef(weibFit)[2]), col="green", add=TRUE)
 }
 
+Test1Discrete <- function(diffs){
+  meanDiff <- mean(diffs)
+  
+  geoFit <- mle2(LogLGeom, start=list(a=1/(meanDiff+3)),
+                 method="L-BFGS-B", data=list(obs=diffs),
+                 optimizer="optim", lower=1e-6, upper=1-(1e-6))
+  
+  discWeibFit <- mle2(LogLDiscWeib, start=list(a= 1/(meanDiff+3), b=1),###
+                      method="L-BFGS-B",data=list(obs=diffs),
+                      optimizer="optim", lower=c(1e-6,1e-6), upper=c(1-(1e-6), 1e+10))###
+  
+  print (summary(geoFit))
+  print (summary(discWeibFit))
+  
+  ####### HOW DO I EXTRACT THE LIKELIHOOD? #############
+  #print(pValFromLRT(logLik(geoFit), logLik(discWeibFit), 1))
+  
+  # Apparently NOT dpois
+  #dgeom
+  
+  hist(diffs, freq=FALSE, breaks = seq(0,150,1))
+  #lines(density(diffs), col = "red")
+  # plot(density(diffs), col = "red", log="y") Can omit top two and use this if log plot desired
+  lines(dgeom(1:max(diffs),coef(geoFit)), col="blue")
+  lines(discWeibPMF(1:max(diffs),coef(discWeibFit)[1],coef(discWeibFit)[2]), col="green")
+}
+
 # Divide cost by a power of ten so it doesn't overwhelm things
-Test2 <- function(diffs){
+Test2 <- function(obs){
   
   # First, OLS on logs
-  diffs=diffs[diffs!=0 & !is.na(diffs)]
-  empCDF = ecdf(diffs)
-  diffs = diffs[diffs!=max(diffs)] # Get rid of max to keep logs from breaking
-  Xlogs = log(diffs)
-  Ylogs = log(1 - empCDF(diffs))
+  obs=obs[obs!=0 & !is.na(obs)]
+  empCDF = ecdf(obs)
+  obs = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
+  Xlogs = log(obs)
+  Ylogs = log(1 - empCDF(obs))
   
   loggyFit <- lm(Ylogs ~ Xlogs)
   print(summary(loggyFit))
@@ -297,7 +360,14 @@ Test2 <- function(diffs){
 
   # Now should do something better.
   
+  powerFit <- mle2(LogLPower, start=list(a=min(obs)/2, b = 2.5),
+                   method="L-BFGS-B", data=list(obs=obs),
+                   optimizer="optim", lower=c(1e-6 ,1+(1e-6)), upper=c(min(obs), 1e20))
   
+  print(summary(powerFit))
+  
+  plot(density(obs), col = "red", log="xy", ylim = c(1e-10,1)) # or lines
+  lines(paretoPDF(1:max(obs),coef(powerFit)[1],coef(powerFit)[2]), col="blue")
 }
 
 # Move this to the top

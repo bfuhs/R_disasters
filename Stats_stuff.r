@@ -251,7 +251,7 @@ paretoPDF <- function(x,a,b){
 }
 
 pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
-  Dstat <- 2*LogL0 - 2*LogL1
+  Dstat <- -2*LogL0 +2*LogL1
 
   return (1 - pchisq(Dstat, paramNumDiff))
 }
@@ -300,13 +300,13 @@ Test1 <- function(diffs){
                   method="L-BFGS-B",data=list(obs=diffs),
                   optimizer="optim", lower=c(1e-6,1e-6))
   
-  #print (summary(expFit))
-  #print (summary(weibFit))
+  print (summary(expFit))
+  print (summary(weibFit))
   #print(profile(expFit))
   #print(confint(expFit))
-  
+
   print(pValFromLRT(logLik(expFit)[1], logLik(weibFit)[1], 1))
-  
+
   # xx = c(1:145)
   # plot(xx, ecdf(diffs)(xx))
   # plot(xx, empPDF(diffs)(xx))
@@ -328,13 +328,13 @@ Test1Discrete <- function(diffs){
                  method="L-BFGS-B", data=list(obs=diffs),
                  optimizer="optim", lower=1e-6, upper=1-(1e-6))
   
-  # I think the LogL for this (or maybe the pdf) is lying to me.
+  # This isn'converging properly
   discWeibFit <- mle2(LogLDiscWeib, start=list(a=1/(meanDiff+3), b=1.4),
                       method="L-BFGS-B",data=list(obs=diffs),
                       optimizer="optim", lower=c(1e-6,1e-6), upper=c(1-(1e-6), 1e10))
   
-  #print (summary(geoFit))
-  #print (summary(discWeibFit))
+  print (summary(geoFit))
+  print (summary(discWeibFit))
   
   print(pValFromLRT(logLik(geoFit)[1], logLik(discWeibFit)[1], 1))
   

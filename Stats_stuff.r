@@ -221,9 +221,10 @@ LogLGeom <- function(a, obs){ # a is a probability
 }
 
 LogLDiscWeib<- function(a,b,obs){
-  LogL = sum(log((1-a)^(obs^b) - (1-a)^((obs+1)^b)))
+  # LogL = sum(log((1-a)^(obs^b) - (1-a)^((obs+1)^b)))
   # Not sure how to simplify this
-  
+  # Try:
+  LogL = log(1-a) * sum(obs^b) + sum(log( 1 - (1-a)^((obs+1)^b - obs^b)))
   if (is.na(LogL)) 
     LogL <- -1e+100
   if (LogL <= -1e+100) 
@@ -251,9 +252,7 @@ paretoPDF <- function(x,a,b){
 
 pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
   Dstat <- 2*LogL0 - 2*LogL1
-  
-  # We want to return the prob that chisq spits out something
-  # more extreme than this
+
   return (1 - pchisq(Dstat, paramNumDiff))
 }
 
@@ -303,12 +302,19 @@ Test1 <- function(diffs){
   
   #print (summary(expFit))
   #print (summary(weibFit))
-
+  #print(profile(expFit))
+  #print(confint(expFit))
+  
+  print(pValFromLRT(logLik(expFit)[1], logLik(weibFit)[1], 1))
+  
   # xx = c(1:145)
   # plot(xx, ecdf(diffs)(xx))
   # plot(xx, empPDF(diffs)(xx))
   
-  hist(diffs, freq=FALSE, breaks = seq(0,150,5))
+  hist(diffs, freq=FALSE, breaks = seq(0,150,5),
+       xlab="Days between declarations", ylab="Probability Density",
+       main="Distribution of number of days between OFDA declarations",
+       sub="blue=Exponential, green=Weibull, red is smoothed non-parametric")
   lines(density(diffs), col = "red")
   # plot(density(diffs), col = "red", log="y") Can omit top two and use this if log plot desired
   curve(dexp(x,coef(expFit)), col="blue", add=TRUE)
@@ -322,52 +328,64 @@ Test1Discrete <- function(diffs){
                  method="L-BFGS-B", data=list(obs=diffs),
                  optimizer="optim", lower=1e-6, upper=1-(1e-6))
   
-  discWeibFit <- mle2(LogLDiscWeib, start=list(a= 1/(meanDiff+3), b=1),###
+  # I think the LogL for this (or maybe the pdf) is lying to me.
+  discWeibFit <- mle2(LogLDiscWeib, start=list(a=1/(meanDiff+3), b=1.4),
                       method="L-BFGS-B",data=list(obs=diffs),
-                      optimizer="optim", lower=c(1e-6,1e-6), upper=c(1-(1e-6), 1e+10))###
+                      optimizer="optim", lower=c(1e-6,1e-6), upper=c(1-(1e-6), 1e10))
   
-  print (summary(geoFit))
-  print (summary(discWeibFit))
+  #print (summary(geoFit))
+  #print (summary(discWeibFit))
   
-  ####### HOW DO I EXTRACT THE LIKELIHOOD? #############
-  #print(pValFromLRT(logLik(geoFit), logLik(discWeibFit), 1))
+  print(pValFromLRT(logLik(geoFit)[1], logLik(discWeibFit)[1], 1))
   
   # Apparently NOT dpois
   #dgeom
   
-  hist(diffs, freq=FALSE, breaks = seq(0,150,1))
+  hist(diffs, freq=FALSE, breaks = seq(0,150,1),
+       xlab="Days between declarations", ylab="Probability Density",
+       main="Discrete distribution of number of days between OFDA declarations",
+       sub="blue=Geometric, green=discrete analog of Weibull (probably broken)")
   #lines(density(diffs), col = "red")
   # plot(density(diffs), col = "red", log="y") Can omit top two and use this if log plot desired
   lines(dgeom(1:max(diffs),coef(geoFit)), col="blue")
   lines(discWeibPMF(1:max(diffs),coef(discWeibFit)[1],coef(discWeibFit)[2]), col="green")
 }
 
-# Divide cost by a power of ten so it doesn't overwhelm things
+# Divide cost by a power of 10000 so it doesn't overwhelm things
 Test2 <- function(obs){
   
   # First, OLS on logs
   obs=obs[obs!=0 & !is.na(obs)]
   empCDF = ecdf(obs)
-  obs = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
-  Xlogs = log(obs)
-  Ylogs = log(1 - empCDF(obs))
+  obs1 = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
+  Xlogs = log(obs1)
+  Ylogs = log(1 - empCDF(obs1))
   
   loggyFit <- lm(Ylogs ~ Xlogs)
   print(summary(loggyFit))
   
-  plot(Xlogs,Ylogs)
-  abline(loggyFit, col="blue")
+  plot(Xlogs,Ylogs, xlab="log(cost/10000)", ylab="log(1 - empiricalCDF)",
+       main="OLS applied to logs: cost of each country-response",
+       sub="blue=OLS fit to logs")
+  abline(loggyFit, col="purple")
 
+  
   # Now should do something better.
   
-  powerFit <- mle2(LogLPower, start=list(a=min(obs)/2, b = 2.5),
-                   method="L-BFGS-B", data=list(obs=obs),
-                   optimizer="optim", lower=c(1e-6 ,1+(1e-6)), upper=c(min(obs), 1e20))
+  powerFit <- mle2(LogLPower, start=list(a=min(obs)/2, b = 2),
+                   method="L-BFGS-B", data=list(obs=obs),             #####????
+                   optimizer="optim", lower=c(1e-6 ,1+(1e-6)), upper=c(min(obs)-1e-10, 1e20)) 
   
   print(summary(powerFit))
   
-  plot(density(obs), col = "red", log="xy", ylim = c(1e-10,1)) # or lines
-  lines(paretoPDF(1:max(obs),coef(powerFit)[1],coef(powerFit)[2]), col="blue")
+  #### This is a stupid bandwidth trick that probably doesn't make sense.
+  plot(density(obs, bw=exp(4.2*x)), col = "red", log="xy", ylim = c(1e-8,1),
+       xlab="Cost/10000", ylab="Probability Density",
+       main="Distribution of cost per OFDA country-response, log-log",
+       sub="blue = power law, red = non-parametric")
+  xx = seq(10,max(obs)+10,max(obs)/1000)
+  lines(xx,paretoPDF(xx,coef(powerFit)[1],coef(powerFit)[2]), col="blue")
+
 }
 
 # Move this to the top

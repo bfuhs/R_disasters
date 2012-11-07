@@ -1,182 +1,180 @@
-#### Stats_stuff.r
+##### Stats_stuff.r
+# Brendon Fuhs
+# updated 11-5-12
 #
-# file created 9-19-12 by Brendon Fuhs
-# last updated 10-7-12
+### Descriptive Statistics
+# getStats(data)
 #
-# You may have to download packages
-# bbmle, moments, and stringr
-
-### Methods to Use:
-
-### inputData() #NON-FUNCTIONAL
-# will be used to get and clean data
-# Right now just has useful commands
-
-### printStats(somedata)
-# gives descriptive statistics for some data
-
-### plotEmpHaz(somedata)
-# non-parametric hazard function estimation plot
-
-### Test0(somedata) #THAT'S A ZERO, NOT THE LETTER O
-# tests for normality and log-normality using Shapiro-Wilk Test
-
-### Test1(somedata) #ALMOST COMPLETE
-# Tests using exponential distribution as Null
-# and Weibull as alternate hyp
-
-### Test1Discrete(somedata)
-# Discrete version of test 1
+# Need shapiro test? Anderson-Darling Test?
+### Stationarity Testing
+#   ######################### NEED THIS
 #
+### Plot nonparametric estimate of distribution
+# plotEmpirical(data, data label)
+#
+### Test models
+# fitModels(data, vector of distribution names, data label)
+#
+### Weibull Test
+# hazardAnalysis(data, data label)
+#
+### Power Law Analysis
+# powerLawAnalysis(data, data label)
+# 
 
-### Test2(somedata) #INCOMPLETE
-# Applies power law analysis
+###################### Another way of doing power law?, LRT????
 
 
-library(stringr)
+#############
+# Note that these currently are only working for univariate data
+# default libraries used include stats
+# non-default libraries used include...
+# packages that need to be downloaded include moments
+
+# library(stringr)
 library(moments)
-library(bbmle)
+# library(bbmle)
+library(plyr)
+library(MASS)
 
-## function to Handle data
-# takes in data, cleans/operates on it, spits out data
-###### This function doesn't actually work; it's just where I've stashed some commands
-inputData <- function(){
-  print("Your working directory is...")
-  print(getwd())
+# descriptive stats of vector x
+# (requires moments package)
+getStats <- function(x){
+  x<-as.numeric(x)
+  xStats <- list( mean(x, na.rm=TRUE), #, took out na.rm=TRUE - didn't make a difference
+                  var(x, na.rm=TRUE),
+				          skewness(x, na.rm=TRUE),
+				          kurtosis(x, na.rm=TRUE),
+				          sd(x, na.rm=TRUE),
+				          median(x, na.rm=TRUE),
+				          max(x, na.rm=TRUE),
+				          min(x, na.rm=TRUE),
+				          sort(table(x))[length(table(x))],
+				          length(x[!is.na(x)])
+				         )
+  names(xStats) <- c( "mean",
+                      "variance",
+					            "skewness",
+					            "kurtosis",
+					            "std. dev.",
+					            "median",
+					            "maximum",
+					            "minimum",
+					            "most freq. obs.",
+					            "number of obs."
+					          )
+  return (xStats)
+}
+
+# non-parametric estimation of distribution
+plotEmpirical <- function(x, label){
+  x <- as.numeric(x)
+  x <- x[!is.na(x)]
+  # CDF plot
+  empCDF <- ecdf(x) # a function
+  plot(empCDF, main = paste(label, "empirical CDF estimation"), xlab=label, ylab=paste("Cumulative probability of",label))
   
-  # (IRL prompt for the filename string)
-  # Import from csv and stringify everything
-  disasterData<-read.csv("OFDAcountryResponse.csv",
-                         header = TRUE,
-                         sep = "\t",
-                         colClasses= "character") 
-  # Maybe should have used "as.is=T" instead of colClasses?
+  # PDF plot
+  empPDF <- density(x) # a density object
+  plot(empPDF, log="y", main = paste(label, "empirical PDF estimation"), xlab=label, ylab=paste("Probability density of",label))
   
-  print (names(disasterData))
-  
-  # Trim  off beginning and ending whitespace
-  disasterData <- sapply(disasterData, str_trim)
-  
-  # disasterData[,7] is the dates. I can't replace it in the data frame,
-  # so I create a new list of lists
-  declarationDates <- str_split(disasterData[,7], ",")
-  declarationDates <- sapply(declarationDates, str_trim)
-  
-  # Change to Date format
-  declarationDates <- sapply(declarationDates, as.Date, format = "%m/%d/%Y")
-  
-  # sort each list
-  declarationDates <- sapply(declarationDates, sort)
-  
-  declarationDates <- sapply(declarationDates, unlist)
-  
-  declarationDates<-sapply(declarationDates, unlist)
-  
-  
-  # get country codes, maybe sapply is better?
-  countryCodes = lapply(disasterData[,1], substr, start=1, stop=3)
-  
-  startFY <- as.numeric(disasterData[,2])
-  endFY <- as.numeric(disasterData[,3])
-  cost <- as.numeric(disasterData[,10]) # gives warning about NA's
-  regions = disasterData[,4]
-  
-  # not sure if I should be making these factors or not
-  regions <- as.factor(regions)
-  startFY <- as.factor(startFY)
-  endFY <- as.factor(endFY)
-  countryCodes <- as.factor(unlist(countryCodes))
-  
-  startingDeclarationDates <- sapply(declarationDates, head, n=1)
-  endingDeclarationDates <- sapply(declarationDates, tail, n=1)
-  # I need to exclude FY 93 and 2010 from some of these
-  # diffDays <- unlist(endingDeclarationDates) - unlist(startingDeclarationDates)
-  # also this isn't long enough
-  affected <- disasterData[,8]
-  dead <- disasterData[,9]
-  # don't forget cost is a response variable too!
-  
-  # regionCostTable <- table(regions, cut(cost, breaks = 10^(3:10)))
-  # countryCostTable <- table(countryCodes, cut(cost, breaks = 10^(3:10)))
-  # barplot(regionCostTable)
-  # barplot(countryCostTable)
-  
-  # better:
-  costRegionTable = table(cut(cost, breaks = 10^(3:10)), regions)
-  barplot(costRegionTable)
-  costCountyTable <- table( cut(cost, breaks = 10^(3:10)), countryCodes)
-  barplot(costCountyTable, horiz=TRUE)
-  # looks too cluttered with or without horiz
-  
-  ### Okay now I'm going to do it getting rid of FY 93 and FY 10
-  
-  excludeThese = disasterData[,2] =="1993" |  disasterData[,2] =="2010" |  disasterData[,3] =="1993" | disasterData[,3] =="2010"
-  constrictedDisasterData = disasterData[!excludeThese,]
-  constrictedDeclarationDates <- str_split(constrictedDisasterData[,7], ",")
-  constrictedDeclarationDates <- sapply(constrictedDeclarationDates, str_trim)
-  constrictedDeclarationDates <- sapply(constrictedDeclarationDates, as.Date, format = "%m/%d/%Y")
-  constrictedDeclarationDates<- sapply(constrictedDeclarationDates, sort)
-  constrictedDeclarationDates<- sapply(constrictedDeclarationDates, unlist)
-  
-  # get country codes, maybe sapply is better?
-  constrictedCountryCodes = lapply(constrictedDisasterData[,1], substr, start=1, stop=3)
-  
-  constrictedStartFY <- as.numeric(constrictedDisasterData[,2])
-  constrictedEndFY <- as.numeric(constrictedDisasterData[,3])
-  constrictedCost <- as.numeric(constrictedDisasterData[,10]) # gives warning about NA's
-  constrictedRegions = constrictedDisasterData[,4]
-  
-  # not sure if I should be making these factors or not
-  constrictedRegions <- as.factor(constrictedRegions)
-  constrictedStartFY <- as.factor(constrictedStartFY)
-  constrictedEndFY <- as.factor(constrictedEndFY)
-  constrictedCountryCodes <- as.factor(unlist(constrictedCountryCodes))
-  
-  constrictedStartingDeclarationDates <- sapply(constrictedDeclarationDates, head, n=1)
-  constrictedEndingDeclarationDates <- sapply(constrictedDeclarationDates, tail, n=1)
-    
-  constrictedAffected <- constrictedDisasterData[,8]
-  constrictedDead <- constrictedDisasterData[,9]
-  
-  excludeFromDiffDays <- lapply(constrictedStartingDeclarationDates, length) == 0 | lapply(constrictedEndingDeclarationDates, length) == 0
-  diffDays <- unlist( constrictedEndingDeclarationDates[!excludeFromDiffDays] ) - unlist( constrictedStartingDeclarationDates[!excludeFromDiffDays] )
-  diffDayCost <- constrictedCost[!excludeFromDiffDays]
-  
-  # plot(diffDays,diffDayCost, log="xy")
-  # plot(diffDays+183,diffDayCost, log="xy")
-  
-  diffDaysNoZero <- diffDays[diffDays!=0]
-  diffDaysNoZeroCost <- diffDayCost[diffDays!=0]
-  
-  
-  adjustedDiffDaysNoZero = diffDaysNoZero + 183
-  
-  logFit<-lm(log(diffDaysNoZeroCost[diffDaysNoZeroCost!=0])
-          ~log(adjustedDiffDaysNoZero[diffDaysNoZeroCost!=0]))
-  plot(log(diffDaysNoZero),log(diffDayNoZeroCost),
-       xlab="log Durations", ylab="log Costs")
-  abline(logFit, col="red")
-  
-  summary(logFit)
-  
-  title(main="p value = 4.867e-12, or so the summary function tells me")
-  
-  # This is not a duration as above
-  # gotta unlist stuff
-  DeclDatesNoDuration <- unlist(constrictedEndingDeclarationDates[unlist(constrictedEndingDeclarationDates) == unlist(constrictedStartingDeclarationDates)])
-  seqntlDeclDatesNoDuration <- sort(DeclDatesNoDuration)
-  intervalDaysNoDuration <- seqntlDeclDatesNoDuration[-1] - seqntlDeclDatesNoDuration[-length(seqntlDeclDatesNoDuration)]
-  intervalDaysNoDurationNoZero <- intervalDaysNoDuration[intervalDaysNoDuration!=0]
-  # I realy don' likehow I'm preparing this
-  # It doesn't seem like I'm capturing anything meaningful here.
-  
-  print(Hypothesis1(intervalDaysNoDurationNoZero))
-  
-  
-  # return stuff
+  # hazard function plot
+  plot ( empPDF$x, empPDF$y/(1-empCDF(empPDF$x)), log="y", main = paste(label, "empirical Hazard function estimation"), xlab=label, ylab=paste("Hazard function of",label), type="l")
 }
 
 
+fitModels <- function(obs, modelNames, label){
+  obs <- as.numeric(obs)
+  obs <- obs[!is.na(obs)]
+  obs <- obs[obs!=0] #### maybe not
+  
+  PDFs <- list( "beta" = dbeta,
+                #"cauchy" = ,
+				        #"chi-squared" = ,
+				        "exponential" = dexp, 
+				        #"f" = , 
+				        "gamma" = dgamma,
+				        "geometric" = dgeom, 
+				        "log-normal" = dlnorm, 
+				        "lognormal" = dlnorm, 
+				        #"logistic" = , 
+				        #"negative binomial" = , 
+				        "normal" = dnorm, 
+				        #"Poisson" = ,
+				        #"t" = ,
+				        "weibull" = dweibull # ,
+				        #"power" = , ##############
+				        #"pareto" =  ############## DO THESE
+			   )
+
+  fitModel <- function(modelName, x){
+    if ( modelName=="power" | modelName=="pareto" ){
+	    fit <- fitdistr(x, PDFs$modelName) ### If this doesn't work, use PDFs[modelName]
+	  }
+	  else {
+      fit <- (fitdistr(x, modelName) )
+	  }
+	  return (fit)
+  }
+  
+  fitList <- lapply(modelNames, fitModel, x=obs)
+  names(fitList) <- modelNames
+  
+  xmin <- min(obs)
+  xmax <- max(obs)
+  xseq <- seq(xmin, xmax, (xmax-xmin)/2000)
+  plot(density(obs), log="y", main = paste(label, "PDF fits"), xlab=label, ylab=paste("Probability density of",label))
+  
+  for (model in modelNames) {
+    lines (xseq, do.call(PDFs[[model]], c(list("x"=xseq), as.list(fitList[[model]]$estimate)) ), type="l" )
+  #  curve( call("PDFs[[model]]", as.list(c(x=x, fitList[[model]]$estimate)) ), add=TRUE ) #### Need to do different colors!
+  } ##################### WHAT IS A BETTER WAY TO DO THIS?
+  
+  AIClist <- list()
+  for (model in modelNames){
+    AIClist[model] <- AIC( logLik(fitList[[model]]), k=length(fitList[[model]]$estimate) )
+  }
+  
+  ########## LRT test?
+  
+  return ( list( "fitList"=fitList, "AIClist"=AIClist ) )
+}
+
+hazardAnalysis <- function(obs, label){
+  info <- fitModels(obs, c("exponential", "weibull"), label)
+  # Do likelihood ratio test for exp is null and return p-value
+  return (info)
+}
+
+powerLawAnalysis <- function(obs, label){
+  # Do a shapiro-wilk test for normality and log-normality
+  # Do a K-S thingy
+  fitModels(obs, c("lognormal", "power"), label)
+  # Do I have to think about having a min cut-off?
+}
+
+
+###### OLD COMMENTS HERE
+# file created 9-19-12 by Brendon Fuhs
+# last updated 10-13-12
+# 
+### Methods to use:
+# 
+# ModelTest: Basic likelihood-based model testing
+# printStats: Descriptive statistics
+# empPlot: Visualization of empirical distributions
+# 
+### non-default packages used:
+#
+# bbmle, moments
+# 
+
+
+
+########### Continuous distributions and corresponding LogL functions
+
+# PDF: dexp
+# CDF: pexp
 LogLExp <- function(a, obs){
   n<-length(obs)
   LogL=n*log(a) - a*sum(obs)
@@ -187,6 +185,8 @@ LogLExp <- function(a, obs){
   return (-LogL)
 }
 
+# PDF: dweibull
+# CDF: pweibull
 LogLWeib <- function(a,b,obs){
   n <- length(obs)
   LogL <- n*log(a/(b^a)) + (a-1)*sum(log(obs)) - sum(obs^a)/(b^a)
@@ -197,7 +197,12 @@ LogLWeib <- function(a,b,obs){
   return (-LogL)
 }
 
-# Prob = (b-1) * a^(b-1) * x^(-b)
+# PDF:
+paretoPDF <- function(x,a,b){
+  Prob = (b-1) * a^(b-1) * x^(-b)
+  return (Prob*(Prob >= 0))
+}
+
 LogLPower <- function(a,b,obs){ 
   n<-length(obs)
   LogL <- n*log((b-1)*a^(b-1)) - b*sum(log(obs))
@@ -209,6 +214,11 @@ LogLPower <- function(a,b,obs){
   return (-LogL)
 }
 
+
+########### Discrete distributions and corresponding LogL functions
+
+# PDF: dgeom
+# CDF: pgeom
 LogLGeom <- function(a, obs){ # a is a probability
   n = length(obs)
   # Lik = (1-a)^sum(obs-1) * a^n
@@ -218,6 +228,14 @@ LogLGeom <- function(a, obs){ # a is a probability
   if (LogL <= -1e+100) 
     LogL <- -1e+100
   return (-LogL)
+}
+
+
+# books.google.com/books?isbn=185233939X page 17
+# changed parameterization a little
+discWeibPMF <- function(x,a,b){
+  Prob = (1-a)^(x^b) - (1-a)^((x+1)^b)
+  return (Prob*(Prob >= 0))
 }
 
 LogLDiscWeib<- function(a,b,obs){
@@ -232,71 +250,81 @@ LogLDiscWeib<- function(a,b,obs){
   return (-LogL)
 }
 
-# books.google.com/books?isbn=185233939X page 17
-# changed parameterization a little
-discWeibPMF <- function(x,a,b){
-  Prob = (1-a)^(x^b) - (1-a)^((x+1)^b)
-  return (Prob*(Prob >= 0))
-  #if (Prob >= 0){
-  #  return (Prob)
-  #}
-  #else{
-  #  return (0)
-  #}
-}
+############ Putting things together as lists for use in Model Test
 
-paretoPDF <- function(x,a,b){
-  Prob = (b-1) * a^(b-1) * x^(-b)
-  return (Prob*(Prob >= 0))
-}
+modelNames = c("exp",
+               "weib",
+               "geom",
+               "discWeib",
+               "power")
 
-pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
-  Dstat <- -2*LogL0 +2*LogL1
+LogLs = c(LogLExp,
+          LogLWeib,
+          LogLGeom,
+          LogLDiscWeib,
+          LogLPower)
 
-  return (1 - pchisq(Dstat, paramNumDiff))
-}
+PDFs = c( dexp,
+          dweibull,
+          dgeom,
+          discWeibPMF,
+          paretoPDF)
 
-empCDF<-ecdf(obs)
-#can use plot.ecdf directly on this
-###
-# NEED TO FIX?
-###
+names(PDFs)<-names(LogLs)<-modelNames
+
+####### MODEL TESTING
+# This takes an array or datatable or matrix, and a vector of model names
+# first column of array is the dependent variable
 #
-# empPDF use kernel estimation/smoothing?
-# KernSmooth package?
-# Or use "density"
-# Then what?
-#
-# See obsolete DisasterTest2.r for comments
-empPDF<-function(obs){ 
-  obsvals=unique(obs)
-  xpts=rowMeans(cbind(obsvals[-1], obsvals[-length(obsvals)]))
-  rise=empCDF(obsvals)[-1] - empCDF(obsvals)[-length(obsvals)] ### relaced empCDF with ecdf
-  run=obsvals[-1]-obsvals[-length(obsvals)]
-  ypts=rise/run
-  return (approxfun(xpts, y=ypts, yleft=0, yright=0))
+ModelTest <- function(dataArray, modelChoices){
+  # use tryCatch or withCallingHandlers for exception handling
+  
+  # Clean up the NA's and the zeros maybe and return info
+  
+  ############ CHANGE THESE TO LISTS
+  # Check dimensionality of dataArray and proceed accordingly
+  ## This will determine whether mle2 takes a "fixed=" entry
+  if ( class(dataArray)=="data.frame" || class(dataArray)=="matrix" ){
+    depVar = rep(list(dataArray[,1]), length(modelChoices))
+    indVars = rep(list(dataArray[,-1]), length(modelChoices))
+  }
+  else{
+    depVar = rep(list(dataArray), length(modelChoices))
+    indVars = rep(list(NULL), length(modelChoices))
+  }
+  
+  ############# I need to find a way to write these as functions 
+  ############# and then apply them only to used models
+  initialValues = list( 6 ) #Put initial value vectors in here.
+  LBounds = list(4) # put lower bounds vectors here
+  UBounds = list(5) # put upper bounds vectors here
+  
+  names(depVar)<-names(indVars)<-modelChoices
+  names(initialValues)<-names(LBounds)<-names(UBounds)<-modelChoices
+  
+  # Some of this should be redundant, but that's okay.
+  argsFrame <- data.frame(list( minuslog1 = LogLs[modelChoices],
+                                start = initVals[modelChoices], ###Each a list
+                                method = 7,###### vector of "L-BFGS-B"
+                                optimizer = 8, ###### vector of "optim"
+                                fixed = indVars[modelChoices],
+                                data = depVar[modelChoices], 
+                                lower = 11, ####
+                                upper = 12 )) #######
+                                
+  fitsList <- mlply(argsFrame,mle2)
+
+  return (fitsList) ##(for now)
 }
 
-# Shapiro-Wilk test for normality and log-normality
-Test0 <- function(diffs){
-  diffs=diffs[diffs!=0 & !is.na(diffs)]
-  
-  print("Normal: ")
-  print(shapiro.test(diffs))
-  print("Log-normal: (Okay to test this way?) ")
-  print(shapiro.test(log(diffs))) ## Is this how to do the log-normality?
-  
-}
-
-# Exp vs Weib
 Test1 <- function(diffs){
   meanDiff <- mean(diffs)
   
-  expFit <- mle2(LogLExp, start=list(a=1/(meanDiff+3) ),
+  expFit <- mle2(LogLExp, start=list(a=1/(meanDiff+1) ),
                  method="L-BFGS-B", data=list(obs=diffs),
                  optimizer="optim", lower=1e-6)
   
-  weibFit <- mle2(LogLWeib, start=list(a=1, b=meanDiff-3),
+  weibFit <- mle2(LogLWeib, start=list(a=1, b=meanDiff),
                   method="L-BFGS-B",data=list(obs=diffs),
                   optimizer="optim", lower=c(1e-6,1e-6))
   
@@ -304,14 +332,14 @@ Test1 <- function(diffs){
   print (summary(weibFit))
   #print(profile(expFit))
   #print(confint(expFit))
-
+  
   print(pValFromLRT(logLik(expFit)[1], logLik(weibFit)[1], 1))
-
+  
   # xx = c(1:145)
   # plot(xx, ecdf(diffs)(xx))
   # plot(xx, empPDF(diffs)(xx))
   
-  hist(diffs, freq=FALSE, breaks = seq(0,150,5),
+  hist(diffs, freq=FALSE, # breaks = seq(0,max(diffs),5),
        xlab="Days between declarations", ylab="Probability Density",
        main="Distribution of number of days between OFDA declarations",
        sub="blue=Exponential, green=Weibull, red is smoothed non-parametric")
@@ -341,7 +369,7 @@ Test1Discrete <- function(diffs){
   # Apparently NOT dpois
   #dgeom
   
-  hist(diffs, freq=FALSE, breaks = seq(0,150,1),
+  hist(diffs, freq=FALSE, breaks = seq(0,max(diffs),1),
        xlab="Days between declarations", ylab="Probability Density",
        main="Discrete distribution of number of days between OFDA declarations",
        sub="blue=Geometric, green=discrete analog of Weibull (probably broken)")
@@ -356,19 +384,9 @@ Test2 <- function(obs){
   
   # First, OLS on logs
   obs=obs[obs!=0 & !is.na(obs)]
-  empCDF = ecdf(obs)
-  obs1 = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
-  Xlogs = log(obs1)
-  Ylogs = log(1 - empCDF(obs1))
   
-  loggyFit <- lm(Ylogs ~ Xlogs)
-  print(summary(loggyFit))
-  
-  plot(Xlogs,Ylogs, xlab="log(cost/10000)", ylab="log(1 - empiricalCDF)",
-       main="OLS applied to logs: cost of each country-response",
-       sub="blue=OLS fit to logs")
-  abline(loggyFit, col="purple")
 
+  
   
   # Now should do something better.
   
@@ -385,35 +403,44 @@ Test2 <- function(obs){
        sub="blue = power law, red = non-parametric")
   xx = seq(10,max(obs)+10,max(obs)/1000)
   lines(xx,paretoPDF(xx,coef(powerFit)[1],coef(powerFit)[2]), col="blue")
-
+  
+  
+  #####OLS POWER LAW CRAP
+  empCDF = ecdf(obs)
+  obs1 = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
+  Xlogs = log(obs1)
+  Ylogs = log(1 - empCDF(obs1))
+  
+  loggyFit <- lm(Ylogs ~ Xlogs)
+  print(summary(loggyFit))
+  
+  plot(Xlogs,Ylogs, xlab="log(cost/10000)", ylab="log(1 - empiricalCDF)",
+       main="OLS applied to logs: cost of each country-response",
+       sub="blue=OLS fit to logs")
+  abline(loggyFit, col="purple")
+  
 }
 
-# Move this to the top
- # for skew and kurtosis
-printStats <- function(x){
-  # Vital stats of vector x
-  print("Mean = ")
-  print(mean(x, na.rm=TRUE)) #, took out na.rm=TRUE - didn't make a difference
-  print("Variance = ")
-  print(var(x, na.rm=TRUE))
-  print("Skewness = ")
-  print(skewness(x, na.rm=TRUE))
-  print("Kurtosis = ")
-  print(kurtosis(x, na.rm=TRUE))
-  print("Std.dev. = ")
-  print(sd(x, na.rm=TRUE))
-  print("median = ")
-  print(median(x, na.rm=TRUE))
-  print("max = ")
-  print(max(x, na.rm=TRUE))
-  print("min = ")
-  print(min(x, na.rm=TRUE))
-  print("most frequent observation (bottom value is no. of instances) = ")
-  print(sort(table(x))[length(table(x))])
-  print("number of observations = ")
-  print(length(x[!is.na(x)]))
-  print(" ")
+pValFromLRT <- function(LogL0, LogL1, paramNumDiff){
+  Dstat <- -2*LogL0 +2*LogL1
+  
+  return (1 - pchisq(Dstat, paramNumDiff))
 }
+
+
+# empCDF<-ecdf(obs)
+
+# Shapiro-Wilk test for normality and log-normality
+Test0 <- function(diffs){
+  diffs=diffs[diffs!=0 & !is.na(diffs)]
+  
+  print("Normal: ")
+  print(shapiro.test(diffs))
+  print("Log-normal: (Okay to test this way?) ")
+  print(shapiro.test(log(diffs))) ## Is this how to do the log-normality?
+  
+}
+
 
 plotEmpHaz <- function(somedata){
   somedata = somedata[somedata!=0 & !is.na(somedata)] # Do I need this?
@@ -491,17 +518,3 @@ plotEmpHaz <- function(somedata){
 #}
 
 
-#display <= function(things){
-  # based on user specification somehow
-  
-#}
-
-
-
-
-# Instantiate models in a list
-# Provide user with description of the list
-
-# User can execute data function
-# User can decide which models to test in list.
-# User decides which information to display

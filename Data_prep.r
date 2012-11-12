@@ -109,11 +109,30 @@ importOFDA <- function(filename){
 importCRED <- function(filename){
   CREDdata <- importCSV(filename)
   
+  
+  
+  
+  
   return (CREDdata)
 }
 
-sortByRow <- function(dFrame, rowName){
-  return ( dFrame[ order( as.numeric(dFrame$rowName) ) ] )
+#sortByRow <- function(dFrame, colName){
+#  print (as.numeric(dFrame[[colName]]))
+#  print (class(as.numeric(dFrame[[colName]])))
+#  #return ( dFrame[ order(as.numeric(dFrame$colName)), ] )
+#  return ( dFrame[ order(dFrame[[colName]]), ] )
+#  
+#}
+################### > testtt <- testOFDA[ order( as.numeric(testOFDA$startDeclDate) ), ]
+### dFrameCol needs to be dFrame$colName
+
+
+
+
+
+
+sortByRow <- function(dFrame, dFrameCol){
+  return (dFrame[ order(as.numeric(dFrameCol)) ])
 }
 
 createDiffs <- function(times){

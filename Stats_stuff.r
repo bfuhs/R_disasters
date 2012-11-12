@@ -35,6 +35,7 @@ library(moments)
 # library(bbmle)
 # library(plyr)
 library(MASS)
+library(ggplot2) ###
 
 # descriptive stats of vector x
 # (requires moments package)

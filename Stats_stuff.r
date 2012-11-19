@@ -1,7 +1,7 @@
 ##### Stats_stuff.r
 #
 # Brendon Fuhs
-# updated 11-17-12
+# updated 11-19-12
 #
 # getStats(data)                      ### Descriptive Statistics
 # BROKEN epochComparison(epochal dates, differences, breaks) ### Stationarity Testing
@@ -59,6 +59,9 @@ getStats <- function(x){
 plotEmpirical <- function(x, label){
   x <- as.numeric(x)
   x <- x[!is.na(x)]
+  if (length(x)<2){
+    return (NULL)
+  }
   # CDF plot
   empCDF <- ecdf(x) # a function
   plot(empCDF, main = paste(label, "empirical CDF estimation"), xlab=label, ylab=paste("Cumulative probability of",label))
@@ -77,29 +80,35 @@ fitModels <- function(obs, modelNames, label){
   obs <- obs[!is.na(obs)]
   obs <- obs[obs!=0] #### maybe not
   
+  paretoPDF <- function(x,a,b){
+    Prob = (b-1) * a^(b-1) * x^(-b)
+    return (Prob*(Prob >= 0)*(b >= 1))
+  }
+  
   PDFs <- list( "beta" = dbeta,
-                #"cauchy" = ,
-				        #"chi-squared" = ,
+                "binomial" = dbinom,
+                "cauchy" = dcauchy,
+				        "chi-squared" = dchisq,
 				        "exponential" = dexp, 
-				        #"f" = , 
+				        "f" = df, 
 				        "gamma" = dgamma,
 				        "geometric" = dgeom, 
 				        "log-normal" = dlnorm, 
 				        "lognormal" = dlnorm, 
-				        #"logistic" = , 
-				        #"negative binomial" = , 
+				        "logistic" = dlogis, 
+				        "negative binomial" = dnbinom, 
 				        "normal" = dnorm, 
-				        #"Poisson" = ,
-				        #"t" = ,
-				        "weibull" = dweibull # ,
-				        #"power" = , ##############
-				        #"pareto" =  ############## DO THESE
+				        "Poisson" = dpois,
+				        "t" = dt,
+				        "weibull" = dweibull,
+				        "power" = paretoPDF,
+				        "pareto" =  paretoPDF
 			   )
 
   fitModel <- function(modelName, x){
-    if ( modelName=="power" | modelName=="pareto" ){
-	    fit <- fitdistr(x, PDFs$modelName) ### If this doesn't work, use PDFs[modelName]
-	  }
+    if ( modelName=="power" | modelName=="pareto" | modelName=="binomial" ){ ## won't work for binomial
+	    fit <- fitdistr(x, PDFs[[modelName]], start = list(a=0.1,b=1.2)) ### If this doesn't work, use PDFs[modelName] or PDFs$modelName
+	  } 
 	  else {
       fit <- (fitdistr(x, modelName) )
 	  }
@@ -109,6 +118,8 @@ fitModels <- function(obs, modelNames, label){
   fitList <- lapply(modelNames, fitModel, x=obs)
   names(fitList) <- modelNames
   
+  
+  ###### REWRITE THIS PLOTTING STUFF SO IT'S GGPLOT2
   xmin <- min(obs)
   xmax <- max(obs)
   xseq <- seq(xmin, xmax, (xmax-xmin)/2000)
@@ -134,8 +145,9 @@ fitModels <- function(obs, modelNames, label){
 }
 
 hazardAnalysis <- function(obs, label){
+  obs <- obs[obs>0]
   info <- fitModels(obs, c("exponential", "weibull"), label)
-  # Do likelihood ratio test for exp is null and return p-value
+  ### Do likelihood ratio test for exp is null and return p-value
   return (info)
 }
 
@@ -176,12 +188,42 @@ epochComparison <- function(longTimes, diffTimes, breaks){
 }
 
 analyzeDurations <- function(obs, label){
+  obs <- obs[obs>=0]
   ########## How to test for clustering, bimodality?
   ## Maybe I should just plot the distributions for now and look at them
-  info <- fitModels(obs, c("exponential", "weibull"), label)
+  info <- fitModels(obs, c("exponential", "weibull", "lognormal"), label) #, "power"
   # Do likelihood ratio test for exp is null and return p-value
   return (info)
 }
 
-
+fitPower <- function(obs,label){
+  obs <- as.numeric(obs)
+  obs <- obs[!is.na(obs)]
+  obs <- obs[obs>0]
+  if (length(obs)<3){
+    return (NULL)
+  }
+  empCDF = ecdf(obs)
+  obs1 = obs[obs!=max(obs)] # Get rid of max to keep logs from breaking
+  Xlogs = log(obs1)
+  Ylogs = log(1 - empCDF(obs1))
+  
+  loggyFit <- lm(Ylogs ~ Xlogs)
+  print(summary(loggyFit))
+  
+  plot(Xlogs,Ylogs, xlab= paste("log ", label),
+       ylab="log(1 - empiricalCDF)",
+       main= paste("OLS applied to logs: ", label),
+       sub="blue=OLS fit to logs")
+  abline(loggyFit, col="blue")
+  
+  print(c(label, " has median..."))
+  print(median(obs))
+  print(" ")
+  expon <- 0
+  #print(c(label, " has exponent..."))
+  #print(expon)
+  #print(" ")
+  # Will need to test how good the fit is.
+}
 

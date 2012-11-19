@@ -1,30 +1,19 @@
 ##### Stats_stuff.r
+#
 # Brendon Fuhs
-# updated 11-5-12
+# updated 11-17-12
 #
-### Descriptive Statistics
-# getStats(data)
-#
-### Stationarity Testing
-# epochComparison(epochal dates, differences, breaks) ## NOT SURE HOW TO HANDLE THIS
-#
-### Plot nonparametric estimate of distribution
-# plotEmpirical(data, data label)
-#
-### Test models
-# fitModels(data, vector of distribution names, data label)
-#
-### Weibull Test
-# hazardAnalysis(data, data label)
-#
-### Power Law Analysis
-# powerLawAnalysis(data, data label)
+# getStats(data)                      ### Descriptive Statistics
+# BROKEN epochComparison(epochal dates, differences, breaks) ### Stationarity Testing
+# ^^^ make call Multi_sets.r
+# plotEmpirical(data, data label)     ### Plot nonparametric estimate of distribution
+# fitModels(data, vector of distribution names, data label) ### Test models
+# hazardAnalysis(data, data label)    ### Weibull Test
+# powerLawAnalysis(data, data label)  ### Power Law Analysis
+# analyzeDurations(data) ### Analyze durations how???
 # 
-
 ###################### Another way of doing power law?, LRT????
-
-
-#############
+######
 # Note that these currently are only working for univariate data
 # default libraries used include stats
 # non-default libraries used include...
@@ -35,7 +24,7 @@ library(moments)
 # library(bbmle)
 # library(plyr)
 library(MASS)
-library(ggplot2) ###
+library(ggplot2) ### Not used yet
 
 # descriptive stats of vector x
 # (requires moments package)
@@ -131,13 +120,17 @@ fitModels <- function(obs, modelNames, label){
   } ##################### WHAT IS A BETTER WAY TO DO THIS?
   
   AIClist <- list()
+  chiSquareList <- list()
+  x <- x[!is.na(x)]
   for (model in modelNames){
+    chiSquareList[model] <- chisq.test(x, p=do.call(PDFs[[model]], c(list("x"=x), as.list(fitList[[model]]$estimate)) ), rescale.p=TRUE)
     AIClist[model] <- AIC( logLik(fitList[[model]]), k=length(fitList[[model]]$estimate) )
   }
   
   ########## LRT test?
   
-  return ( list( "fitList"=fitList, "AIClist"=AIClist ) )
+  
+  return ( list( "fitList"=fitList, "AIClist"=AIClist, "chiSquareList"=chiSquareList) )
 }
 
 hazardAnalysis <- function(obs, label){
@@ -168,7 +161,11 @@ powerLawAnalysis <- function(obs, label){
 ### Stationarity Testing
 epochComparison <- function(longTimes, diffTimes, breaks){
   
-  # Create chunks
+  # Use  diffTimes and breaks to create a factor vector thingy
+  
+  # Call makeTable
+  
+  # Do comparisons based on that.
   
   # compare the stats for each chunk
   
@@ -177,5 +174,14 @@ epochComparison <- function(longTimes, diffTimes, breaks){
   # Is there a way to do this all statisticsy and stuff?
   
 }
+
+analyzeDurations <- function(obs, label){
+  ########## How to test for clustering, bimodality?
+  ## Maybe I should just plot the distributions for now and look at them
+  info <- fitModels(obs, c("exponential", "weibull"), label)
+  # Do likelihood ratio test for exp is null and return p-value
+  return (info)
+}
+
 
 

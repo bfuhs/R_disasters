@@ -1,31 +1,22 @@
-#
-# Data_prep.r
+##### Data_prep.r
 #
 # Brendon Fuhs
-# Updated 11-4-12
+# Updated 11-17-12
 #
 # Functions to use:
 #
-#### General data importing
-# importCSV(filename) 
-# importClipboard()
+# importCSV(filename)         ### import data from csv file
+# importClipboard()           ### import data from clipboard
+# importOFDA(filename)        ### import data from OFDA csv file
+# importCRED(filename)        ### import data from CRED/EMDAT csv file
+# BROKEN sortByCol(data frame, rowName) ### sort a dataframe according to a particular column
+# createDiffs(times)          ### create a vector of time-differences from times
+# BROKEN createDurations(startTimes,endTimes) ### create vector of durations from vectors of start and end times
 #
-#### importing data from OFDA csv file
-# importOFDA(filename)
-#
-#### importing data from CRED/EMDAT csv file
-# importCRED(filename)
-#
-#### sort a data frame according to a particular row
-# sortByRow(data frame, rowName)
-#
-#### creating a vector of time-differences from times
-# createDiffs(times)
-#
-### Make sure that csv files are in the working directory! ( getwd() )
-#
-### Note that throughout, it is assumed that csv files
-### are delineated by TABs, not commas, and have column titles
+######
+# Make sure that csv files are in the working directory! ( getwd() )
+# Note that throughout, it is assumed that csv files
+# are delineated by TABs, not commas, and have column titles
 
 
 library(stringr)
@@ -109,9 +100,20 @@ importOFDA <- function(filename){
 importCRED <- function(filename){
   CREDdata <- importCSV(filename)
   
-  
-  
-  
+  ### These are commands used for one time
+  Eafrica <- importCSV("EafricaCondensed.csv")
+  # quick and dirty change 00 to 01
+  EafricaDates <- sapply(Eafrica[[5]], str_replace_all, pattern="00/", replacement="01/")
+  EafricaDates <- as.Date(EafricaDates, format = "%d/%m/%Y")
+  qplot(EafricaDates)
+  sortedEafricaDates <- sort(EafricaDates)
+  EafricaDiffsSince1970 <- createDiffs(sortedEafricaDates[8:410])
+  EafricaDiffsSince1993 <- createDiffs(sortedEafricaDates[64:410])
+  hazardAnalysis(EafricaDiffsSince1993, "since 1993")
+  hazardAnalysis(EafricaDiffsSince1970, "since 1970")
+  sortedEafrica <- Eafrica[ order( as.numeric(Eafrica$Start..) ), ]
+  ughstuff<-makeTable(EafricaDiffsSince1970, Eafrica$Type[8:410])
+  ughstuff<-makeTable(EafricaDiffsSince1993, Eafrica$Type[64:410])
   
   return (CREDdata)
 }
@@ -127,16 +129,24 @@ importCRED <- function(filename){
 ### dFrameCol needs to be dFrame$colName
 
 
-
-
-
-
-sortByRow <- function(dFrame, dFrameCol){
+sortByCol <- function(dFrame, dFrameCol){
   return (dFrame[ order(as.numeric(dFrameCol)) ])
 }
 
+createDurations <- function(startTimes, endTimes){
+  startTimes <- as.numeric(startTimes)
+  endTimes <- as.numeric(endTimes)
+  if (length(startTimes)!=length(endTimes)){
+    print ("vectors are not the same length")
+    return (NULL)
+  }
+  durations <- endTimes - startTimes
+  
+  return (durations)
+}
+
 createDiffs <- function(times){
-  diffs <- as.numeric(times[-1]) - as.numeric(times[-length(times)])
+  diffs <- createDurations( times[-1], times[-length(times)] )
   return (c(diffs, NA))
 }
 
